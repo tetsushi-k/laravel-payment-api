@@ -1,0 +1,82 @@
+# =============================================================
+# Docker Compose 設定ファイル
+# 構成: PHP 8.2（Laravel実行環境）+ MySQL 8.0（DB）+ Nginx（Webサーバー）
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # PHP-FPM サービス
+  # Laravel アプリケーションを実行するコンテナ
+  # PHP 8.2 を採用（Laravel 11.x の推奨バージョン）
+  # -----------------------------------------------------------
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    volumes:
+      # ホストの src/ ディレクトリをコンテナ内の /var/www にマウント
+      # ホスト側の編集がリアルタイムでコンテナに反映される
+      - ./src:/var/www
+    networks:
+      - laravel_network
+    depends_on:
+      - db
+
+  # -----------------------------------------------------------
+  # Nginx サービス
+  # 外部からのHTTPリクエストを受け取り、PHP-FPMに転送する
+  # ポート80で待ち受け、ブラウザから http://localhost でアクセス可能
+  # -----------------------------------------------------------
+  web:
+    image: nginx:1.25-alpine
+    container_name: laravel_web
+    ports:
+      - "80:80"
+    volumes:
+      - ./src:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - laravel_network
+    depends_on:
+      - app
+
+  # -----------------------------------------------------------
+  # MySQL サービス
+  # Laravel のデータ永続化に使用
+  # MySQL 8.0 を採用（認証方式が新しく、セキュリティが向上）
+  # -----------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: laravel_db
+    environment:
+      # セキュリティ注意: 本番環境では必ず強力なパスワードに変更すること
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: laravel_payment
+      MYSQL_USER: laravel_user
+      MYSQL_PASSWORD: laravel_password
+    ports:
+      # ホスト側3306ポートからDBクライアント（TablePlusなど）で接続可能にする
+      - "3306:3306"
+    volumes:
+      # DBデータをDockerボリュームに永続化（コンテナ削除後もデータが残る）
+      - db_data:/var/lib/mysql
+    networks:
+      - laravel_network
+
+# -----------------------------------------------------------
+# ネットワーク設定
+# コンテナ間の通信を専用ネットワークで隔離する
+# -----------------------------------------------------------
+networks:
+  laravel_network:
+    driver: bridge
+
+# -----------------------------------------------------------
+# ボリューム設定
+# MySQLのデータをホストマシンに永続化する
+# -----------------------------------------------------------
+volumes:
+  db_data:
+    driver: local

@@ -1,0 +1,48 @@
+# =============================================================
+# プロジェクトルート用 .gitignore
+# laravel-payment-api/
+# =============================================================
+
+# -----------------------------------------------------------
+# Laravel アプリケーション（src/配下の .gitignore に委譲）
+# src/.gitignore が Laravel の標準除外設定を管理する
+# -----------------------------------------------------------
+
+# セキュリティ上重要: 絶対にコミットしてはいけないファイル
+# .env はデータベース接続情報・APIキーなどの機密情報を含む
+src/.env
+src/.env.backup
+src/.env.production
+
+# Laravelのログ・キャッシュ（大量かつ不要なファイル）
+src/storage/logs/*.log
+src/storage/framework/cache/*
+src/storage/framework/sessions/*
+src/storage/framework/views/*
+
+# Composerで管理するため不要（composer install で再生成可能）
+src/vendor/
+
+# npmで管理するため不要（npm install で再生成可能）
+src/node_modules/
+
+# ビルド成果物（再生成可能）
+src/public/build/
+src/public/hot/
+
+# -----------------------------------------------------------
+# Docker 関連
+# -----------------------------------------------------------
+
+# MySQLのデータは大容量のため除外（docker volume で管理）
+mysql/
+
+# -----------------------------------------------------------
+# OS・エディター固有ファイル
+# -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
