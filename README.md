@@ -1,19 +1,24 @@
 # laravel-payment-api
 
-Laravel × Stripe Webhook による決済連携 API のポートフォリオ実装です。
+Laravel × Stripe Webhook による決済連携アプリケーションのポートフォリオ実装です。
+
+ユーザーがログインしてカード決済を行い、Stripeからの Webhook を受け取って注文ステータスを更新する一連のフローを、実務を意識した設計で構築しています。
 
 ---
 
 ## ① 概要
 
-Stripe の決済フローと Webhook 連携を実装したバックエンド API です。
-決済イベント（成功・失敗・返金）を受け取り、データベースの注文ステータスをリアルタイムで更新します。
+Stripeの決済フローと Webhook 連携を実装した Laravel アプリケーションです。
+ログイン認証・決済フォーム・Webhook受信・注文一覧までを一通り実装しており、決済システム特有の課題（**署名検証・冪等性・状態遷移・レースコンディション対策**）に取り組んでいます。
 
-**主な機能**
-- `POST /api/webhook/stripe` - Stripe Webhook 受信エンドポイント
-- 署名検証（Webhook Signature）による不正リクエストの検出・拒否
-- `orders` テーブルへの決済ステータスの記録・更新
-- イベント種別（成功 / 失敗 / 返金）ごとの処理振り分け
+### 主な機能
+
+- ユーザーログイン（セッション認証）
+- Stripe を使ったカード決済フォーム
+- Webhook 受信エンドポイント（`POST /api/webhook/stripe`）
+- 署名検証による不正リクエストの検出・拒否
+- 決済イベント（成功 / 失敗 / 返金）に応じた `orders` テーブルのステータス更新
+- ログインユーザー本人の注文のみを表示する注文一覧画面
 
 ---
 
@@ -26,38 +31,87 @@ Stripe の決済フローと Webhook 連携を実装したバックエンド API
 | データベース | MySQL 8.0 |
 | Web サーバー | Nginx 1.25 |
 | コンテナ | Docker / Docker Compose |
-| 認証（API） | Laravel Sanctum |
+| 認証 | Laravel 標準セッション認証 |
 
 ---
 
 ## ③ 設計上の工夫
 
 ### セキュリティ
+
 - **Webhook 署名検証の必須化**
   `Stripe\Webhook::constructEvent()` で署名を検証し、第三者による偽リクエストを防止。
-  署名検証をスキップするコードは一切存在しない。
+  `SignatureVerificationException` を専用で捕捉し、署名検証失敗時のみ400を返すことで、想定外の例外を握りつぶさない設計にしている。
 
-- **生のリクエストボディ取得**
-  Laravel の Request オブジェクトではなく `php://input` から直接取得することで、
-  署名検証に必要なバイト列を保持。
+- **生のリクエストボディの取得**
+  `$request->getContent()` で生バイト列を取得（内部的に `php://input` を読む）。
+  パース済みの `$request->all()` ではStripeの署名検証が通らないため、Laravel流に統一しつつ正しい方法を選択。
 
 - **機密情報の管理**
   API キー・Webhook シークレットはすべて `.env` で管理し、コードへの直接記述を禁止。
+  `config()` 経由で参照することで `php artisan config:cache` 後も正しく動作するようにしている。
+
+- **セッション固定攻撃対策**
+  ログイン成功時に `session()->regenerate()` を呼び、セッションIDを再生成。
+  ログアウト時には `invalidate()` でセッションを完全破棄。
+
+### 冪等性・状態遷移
+
+Stripeはネットワーク障害時にWebhookを再送するため、二重処理を防ぐ仕組みが必須。
+本実装では3層で冪等性を担保している：
+
+1. **`stripe_payment_intent_id` に unique 制約**
+   同一PaymentIntentで2件目のレコード作成を物理的に防ぐ。
+
+2. **状態遷移の条件付きUPDATE**
+   `status = 'pending'` の注文のみを `succeeded` に更新する。
+   既に処理済みの注文には何も起きないため、Webhookが何度来ても安全。
+
+3. **`lockForUpdate()` によるレースコンディション対策**
+   トランザクション内で行ロックを取得することで、同一イベントが並行して届いた場合でもDBレベルで直列化される。
+
+```php
+DB::transaction(function () use ($paymentIntent) {
+    $order = Order::where('stripe_payment_intent_id', $paymentIntent->id)
+        ->where('status', 'pending')
+        ->lockForUpdate()
+        ->first();
+
+    if (!$order) return; // 処理済み or 対象なし
+
+    $order->update(['status' => 'succeeded']);
+});
+```
 
 ### データ設計
+
 - **金額を整数で保持**
-  Stripe の仕様に合わせ `amount` カラムを `integer` 型にすることで、浮動小数点誤差を排除。
+  Stripeの仕様（最小通貨単位）に合わせ `amount` カラムを `integer` 型にすることで、浮動小数点誤差を排除。
 
-- **冪等性の確保**
-  `stripe_payment_intent_id` に `unique` 制約を付与し、同一イベントの二重処理を防止。
+- **`status` を string 型で保持**
+  enum ではなく string にすることで、Stripeの新しいステータス（`requires_action`・`partially_refunded` など）にも柔軟に対応できる。
 
-- **拡張性**
-  `user_id` を `nullable` にすることで、将来のゲスト購入対応が可能。
-  `status` を `string` 型にすることで、新しい Stripe ステータスにも柔軟に対応。
+- **`stripe_payment_intent_id` で Stripe側と紐付け**
+  Webhookで届く Stripe側のIDを保持することで、ダッシュボードとの照合・問い合わせ対応・冪等性チェックに活用。
+
+- **拡張余地**
+  状態遷移が複雑化した場合は `order_status_histories` テーブルを追加することで、変更履歴を監査可能な形で残せる設計を想定している。
 
 ### アーキテクチャ
-- イベント処理を private メソッドに分離し、コントローラーの可読性・保守性を確保。
-- Docker でコンテナを専用ネットワーク（`laravel_network`）で隔離し、外部からの直接アクセスを防止。
+
+- **Service層によるFat Controller回避**
+  決済関連のビジネスロジック（DB操作・状態遷移・ロック制御）は `PaymentService` に集約。
+  Controllerは「リクエスト受け取り・署名検証・イベント振り分け・レスポンス返却」のみを担う。
+
+- **コンストラクタインジェクション**
+  Laravelの DIコンテナを利用し、Controller に Service を注入。
+  テスト時にモック差し替えが可能な構成。
+
+- **`match` 式によるイベント振り分け**
+  Stripeのイベント種別に応じてService のメソッドを呼び分ける処理を `match` で簡潔に表現。
+
+- **Docker でのインフラ隔離**
+  app / web / db を専用ネットワーク（`laravel_network`）で隔離し、外部からの直接DBアクセスを防止。
 
 ---
 
@@ -65,7 +119,7 @@ Stripe の決済フローと Webhook 連携を実装したバックエンド API
 
 ### 前提条件
 - Docker Desktop がインストール済みであること
-- Stripe アカウントを持っていること（テストモード）
+- Stripe アカウントを持っていること（テストモードでOK）
 
 ### 手順
 
@@ -80,12 +134,12 @@ cd laravel-payment-api
 cp src/.env.example src/.env
 ```
 
-`.env` を編集して Stripe のキーを設定します。
+`src/.env` を編集して Stripe のキーを設定します：
 
 ```env
-STRIPE_SECRET_KEY=sk_test_xxxxxxxxxx   # Stripe Dashboard から取得
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxx     # Stripe Dashboard から取得
 STRIPE_PUBLIC_KEY=pk_test_xxxxxxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxx # Webhook 設定後に取得
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxx   # Webhook 設定後に取得
 ```
 
 **3. Docker コンテナの起動**
@@ -93,26 +147,58 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxx # Webhook 設定後に取得
 docker compose up -d --build
 ```
 
-**4. マイグレーションの実行**
+**4. Laravelの初期セットアップ**
 ```bash
+docker compose exec app composer install
+docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate
 ```
 
-**5. 動作確認**
+**5. テストユーザーの作成**
+```bash
+docker compose exec app php artisan tinker --execute="App\Models\User::create(['name' => 'テストユーザー', 'email' => 'test@example.com', 'password' => bcrypt('password123')]);"
+```
 
-ブラウザで `http://localhost` にアクセスし、Laravel のウェルカムページが表示されれば起動成功です。
+**6. 動作確認**
 
-### Stripe Webhook のローカルテスト
+ブラウザで `http://localhost` にアクセスすると `/login` にリダイレクトされます。
+以下の認証情報でログインしてください：
 
-[Stripe CLI](https://stripe.com/docs/stripe-cli) を使用してローカルで Webhook を受信できます。
+| 項目 | 値 |
+|---|---|
+| メールアドレス | `test@example.com` |
+| パスワード | `password123` |
+
+ログイン後、決済フォーム（`/payment`）と注文一覧（`/orders`）が利用できます。
+
+---
+
+## ⑤ 動作確認
+
+### Stripe テスト用カード番号
+
+| カード番号 | 結果 |
+|---|---|
+| `4242 4242 4242 4242` | 決済成功 |
+| `4000 0000 0000 0002` | 決済失敗 |
+| `4000 0025 0000 3155` | 3Dセキュア認証あり |
+
+- 有効期限：未来の日付ならなんでもOK（例：`12/30`）
+- CVC：任意の3桁（例：`123`）
+
+### Webhook のローカル受信
+
+[Stripe CLI](https://stripe.com/docs/stripe-cli) を使ってローカルで Webhook を受信できます：
 
 ```bash
-# Stripe CLI でイベントを転送
+# Stripe CLI でイベントを localhost に転送
 stripe listen --forward-to localhost/api/webhook/stripe
 
 # 別ターミナルでテストイベントを送信
 stripe trigger payment_intent.succeeded
 ```
+
+`stripe listen` を起動すると Webhook シークレットが表示されるので、`.env` の `STRIPE_WEBHOOK_SECRET` に設定してください。
 
 ### コンテナの停止
 
@@ -122,22 +208,52 @@ docker compose down
 
 ---
 
-## ディレクトリ構成
+## ⑥ ディレクトリ構成
 
 ```
 laravel-payment-api/
 ├── docker/
 │   ├── nginx/
-│   │   └── default.conf     # Nginx 設定
+│   │   └── default.conf
 │   └── php/
-│       └── Dockerfile        # PHP 8.4-fpm 環境
-├── src/                      # Laravel アプリケーション
-│   ├── app/Http/Controllers/
-│   │   └── StripeWebhookController.php
+│       └── Dockerfile
+├── src/                                              # Laravel アプリケーション
+│   ├── app/
+│   │   ├── Http/Controllers/
+│   │   │   ├── AuthController.php                    # ログイン・ログアウト
+│   │   │   ├── PaymentController.php                 # 決済フォーム・PaymentIntent作成
+│   │   │   ├── OrderController.php                   # 注文一覧
+│   │   │   └── StripeWebhookController.php           # Webhook受信・署名検証
+│   │   ├── Models/
+│   │   │   ├── User.php
+│   │   │   └── Order.php
+│   │   └── Services/
+│   │       └── PaymentService.php                    # 決済ビジネスロジック・冪等性制御
 │   ├── database/migrations/
+│   │   ├── xxxx_create_users_table.php
 │   │   └── xxxx_create_orders_table.php
+│   ├── resources/views/
+│   │   ├── auth/login.blade.php
+│   │   ├── payment/
+│   │   └── orders/
 │   └── routes/
-│       └── api.php
+│       ├── web.php                                   # ログイン・決済・注文一覧
+│       └── api.php                                   # Webhook
 ├── docker-compose.yml
 └── README.md
 ```
+
+---
+
+## ⑦ 今後の拡張案
+
+- **キュー（Job）化**
+  Webhook 受信時の処理を `ProcessPaymentSucceeded` などの Job に切り出し、即座に200を返してワーカーで非同期処理する設計に拡張可能。
+  メール送信・在庫更新など重い処理を追加する際に Stripe のタイムアウト（30秒）を回避できる。
+
+- **状態遷移履歴の保存**
+  `order_status_histories` テーブルを追加し、ステータス変更履歴を監査可能な形で記録する。
+  チャージバック・部分返金など複雑な状態遷移が必要になった際に有効。
+
+- **失敗ジョブの監視**
+  `failed_jobs` テーブルを活用し、リトライ上限超過時に Slack通知などで担当者にアラートを飛ばす仕組み。
