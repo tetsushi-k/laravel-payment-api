@@ -132,6 +132,7 @@
 
     // Card Element を作成してフォームに挿入
     const cardElement = elements.create('card', {
+        hidePostalCode: true,
         style: {
             base: { fontSize: '16px', color: '#1a202c' }
         }

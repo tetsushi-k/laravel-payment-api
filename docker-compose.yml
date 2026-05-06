@@ -51,7 +51,7 @@ services:
     image: mysql:8.0
     container_name: laravel_db
     environment:
-      # セキュリティ注意: 本番環境では必ず強力なパスワードに変更すること
+      # ローカル開発専用。本番はCI/CDの環境変数で注入する。
       MYSQL_ROOT_PASSWORD: root_password
       MYSQL_DATABASE: laravel_payment
       MYSQL_USER: laravel_user
