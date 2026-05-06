@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use App\Models\Order;
@@ -62,7 +63,7 @@ class PaymentController extends Controller
         // orders テーブルに pending 状態で記録
         // Webhook 受信後に status が succeeded に更新される
         Order::create([
-            'user_id'                    => null, // ゲスト購入のため null
+            'user_id'                    => Auth::id(), // auth ミドルウェアを通すので必ず取得できる
             'amount'                     => $request->amount,
             'status'                     => 'pending',
             'stripe_payment_intent_id'   => $paymentIntent->id,

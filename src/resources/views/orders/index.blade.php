@@ -102,13 +102,33 @@
             font-size: 0.82rem;
             margin-top: 12px;
         }
+        .btn-logout {
+            padding: 10px 20px;
+            background: transparent;
+            color: #718096;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .btn-logout:hover { background: #f7fafc; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .user-name { font-size: 0.875rem; color: #718096; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
         <h1>注文一覧</h1>
-        <a href="/payment" class="btn">+ 新しい決済</a>
+        <div class="header-actions">
+            <span class="user-name">{{ Auth::user()->name }}</span>
+            <a href="/payment" class="btn">+ 新しい決済</a>
+            <form method="POST" action="/logout">
+                @csrf
+                <button type="submit" class="btn-logout">ログアウト</button>
+            </form>
+        </div>
     </div>
 
     <div class="card">
