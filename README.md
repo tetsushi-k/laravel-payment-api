@@ -35,7 +35,89 @@ Stripeの決済フローと Webhook 連携を実装した Laravel アプリケ�
 
 ---
 
-## ③ 設計上の工夫
+## ③ アーキテクチャ図
+
+### ER図
+
+ゲスト購入への拡張余地を持たせるため `orders.user_id` は nullable。
+`stripe_payment_intent_id` に unique 制約を付けることで、Webhook 再送による二重登録をDBレベルで防止している。
+
+```mermaid
+erDiagram
+    users ||--o{ orders : "places"
+
+    users {
+        bigint id PK
+        string name
+        string email UK
+        timestamp email_verified_at
+        string password
+        string remember_token
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    orders {
+        bigint id PK
+        bigint user_id FK "nullable（ゲスト購入対応）"
+        integer amount "Stripe最小通貨単位"
+        string status "pending / succeeded / failed / refunded"
+        string stripe_payment_intent_id UK "nullable / 冪等性キー"
+        timestamp created_at
+        timestamp updated_at
+    }
+```
+
+### 決済フロー（シーケンス図）
+
+ブラウザからの同期的な決済確認と、Stripe からの **非同期 Webhook** を分離した設計。
+注文ステータスの確定は必ず Webhook 側で行うことで、ブラウザ側の通信断による状態不整合を防いでいる。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant Browser as ブラウザ
+    participant App as Laravel App
+    participant Stripe as Stripe API
+
+    User->>Browser: カード情報を入力
+    Browser->>App: POST /payment（PaymentIntent作成）
+    App->>Stripe: PaymentIntent.create()
+    Stripe-->>App: client_secret
+    App->>App: orders を status='pending' で作成
+    App-->>Browser: client_secret を返却
+    Browser->>Stripe: confirmCardPayment(client_secret)
+    Stripe-->>Browser: 決済結果（画面表示用）
+
+    Note over Stripe,App: ここから非同期 Webhook フロー
+
+    Stripe->>App: POST /api/webhook/stripe<br/>(Stripe-Signature ヘッダ付き)
+    App->>App: 署名検証<br/>Webhook::constructEvent()
+    App->>App: DB::transaction + lockForUpdate()
+    App->>App: status='pending' の注文のみ<br/>'succeeded' / 'failed' に更新
+    App-->>Stripe: 200 OK
+```
+
+### 注文ステータスの状態遷移
+
+`pending` → `succeeded` / `failed` への遷移は Webhook イベントによってのみ行われる。
+`succeeded` から `refunded` への遷移は `charge.refunded` イベントで発生する。
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: 注文作成<br/>(PaymentIntent作成時)
+    pending --> succeeded: payment_intent.succeeded
+    pending --> failed: payment_intent.payment_failed
+    succeeded --> refunded: charge.refunded
+    failed --> [*]
+    refunded --> [*]
+    succeeded --> [*]
+```
+
+---
+
+## ④ 設計上の工夫
 
 ### セキュリティ
 
@@ -115,7 +197,7 @@ DB::transaction(function () use ($paymentIntent) {
 
 ---
 
-## ④ ローカル起動方法
+## ⑤ ローカル起動方法
 
 ### 前提条件
 - Docker Desktop がインストール済みであること
@@ -173,7 +255,7 @@ docker compose exec app php artisan tinker --execute="App\Models\User::create(['
 
 ---
 
-## ⑤ 動作確認
+## ⑥ 動作確認
 
 ### Stripe テスト用カード番号
 
@@ -208,7 +290,7 @@ docker compose down
 
 ---
 
-## ⑥ ディレクトリ構成
+## ⑦ ディレクトリ構成
 
 ```
 laravel-payment-api/
@@ -245,7 +327,7 @@ laravel-payment-api/
 
 ---
 
-## ⑦ 今後の拡張案
+## ⑧ 今後の拡張案
 
 - **キュー（Job）化**
   Webhook 受信時の処理を `ProcessPaymentSucceeded` などの Job に切り出し、即座に200を返してワーカーで非同期処理する設計に拡張可能。
