@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-06-07T09:33:00Z
-- **Current Stage**: INCEPTION complete → CONSTRUCTION U1 auth-api (next)
+- **Current Stage**: CONSTRUCTION — U2 spa-foundation (next)
 - **Objective**: Convert `laravel-payment-api` from Blade server-rendered views to a React SPA (with Laravel acting as a JSON API backend)
 
 ## Execution Plan Summary
@@ -13,7 +13,7 @@
 
 ## Workspace State
 - **Existing Code**: Yes
-- **Workspace Root**: c:\Users\tekku\Documents\workspace\portfolio\laravel-payment-api
+- **Workspace Root**: c:\Users\tekku\Documents\workspace/portfolio/laravel-payment-api
 
 ## Extension Configuration
 | Extension | Enabled | Decided At |
@@ -24,8 +24,8 @@
 ## Units of Work
 | Unit | Name | Status |
 |---|---|---|
-| U1 | auth-api | pending (next) |
-| U2 | spa-foundation | pending |
+| U1 | auth-api | complete |
+| U2 | spa-foundation | pending (next) |
 | U3 | payment-orders-api | pending |
 | U4 | spa-payment-orders | pending |
 | U5 | cleanup-tests-docs | pending |
@@ -46,13 +46,14 @@
 - [ ] NFR Requirements - SKIP
 - [ ] NFR Design - SKIP
 - [ ] Infrastructure Design - SKIP
-- [ ] Code Generation - U1 auth-api (next)
+- [x] Code Generation - U1 auth-api
+- [ ] Code Generation - U2 spa-foundation (next)
 - [ ] Build and Test
 
 ### OPERATIONS PHASE
 - [ ] Operations - PLACEHOLDER
 
 ## Current Status
-- **Lifecycle Phase**: CONSTRUCTION（INCEPTION 完了）
-- **Next Action**: U1 auth-api — Code Generation Part 1（実装計画作成）
-- **Branch**: `feat/react-spa`（実装開始時に作成）
+- **Lifecycle Phase**: CONSTRUCTION
+- **Next Action**: U2 spa-foundation — Code Generation Part 1（実装計画作成）
+- **Branch**: `feat/react-spa`

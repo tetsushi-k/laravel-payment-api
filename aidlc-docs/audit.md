@@ -119,3 +119,11 @@
 **Context**: Pre-CONSTRUCTION checkpoint (commit strategy #0)
 
 ---
+
+## Code Generation - U1 auth-api Complete
+**Timestamp**: 2026-06-13T00:00:00Z
+**User Input**: "U1進めて。"
+**AI Response**: "Created u1-auth-api-code-generation-plan.md. Implemented AuthApiController (POST /api/login, POST /api/logout, GET /api/user), updated routes/api.php, enabled statefulApi() in bootstrap/app.php, added SANCTUM_STATEFUL_DOMAINS to .env.example. U1 marked complete; next U2 spa-foundation."
+**Context**: CONSTRUCTION - Code Generation U1 auth-api
+
+---
