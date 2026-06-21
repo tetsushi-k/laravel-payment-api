@@ -127,3 +127,11 @@
 **Context**: CONSTRUCTION - Code Generation U1 auth-api
 
 ---
+
+## Code Generation - U2 spa-foundation Complete
+**Timestamp**: 2026-06-13T12:00:00Z
+**User Input**: "OK.U1の修正についてなんとなく理解できた！U2に進んで。"
+**AI Response**: "Implemented U2 spa-foundation: React+TS+Vite+Router+Tailwind scaffold, app.blade.php SPA shell, web.php fallback, ApiClient/useAuth/AuthGuard/Layout, LoginPage with Sanctum API login, protected /orders and /payment placeholders."
+**Context**: CONSTRUCTION - Code Generation U2 spa-foundation
+
+---
