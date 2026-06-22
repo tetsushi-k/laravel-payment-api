@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { OrderListPage } from '@/pages/OrderListPage';
 import { PaymentPage } from '@/pages/PaymentPage';
+import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage';
 
 function RootRedirect() {
     const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ export default function App() {
                     </Route>
 
                     <Route element={<AuthGuard />}>
+                        <Route path="/payment/success" element={<PaymentSuccessPage />} />
                         <Route element={<Layout />}>
                             <Route path="/payment" element={<PaymentPage />} />
                             <Route path="/orders" element={<OrderListPage />} />
