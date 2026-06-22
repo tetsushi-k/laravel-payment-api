@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-06-07T09:33:00Z
-- **Current Stage**: CONSTRUCTION — U4 spa-payment-orders (next)
+- **Current Stage**: CONSTRUCTION — Build and Test (complete)
 - **Objective**: Convert `laravel-payment-api` from Blade server-rendered views to a React SPA (with Laravel acting as a JSON API backend)
 
 ## Execution Plan Summary
@@ -27,8 +27,8 @@
 | U1 | auth-api | complete |
 | U2 | spa-foundation | complete |
 | U3 | payment-orders-api | complete |
-| U4 | spa-payment-orders | pending (next) |
-| U5 | cleanup-tests-docs | pending |
+| U4 | spa-payment-orders | complete |
+| U5 | cleanup-tests-docs | complete |
 
 ## Stage Progress
 
@@ -49,13 +49,14 @@
 - [x] Code Generation - U1 auth-api
 - [x] Code Generation - U2 spa-foundation
 - [x] Code Generation - U3 payment-orders-api
-- [ ] Code Generation - U4 spa-payment-orders (next)
-- [ ] Build and Test
+- [x] Code Generation - U4 spa-payment-orders
+- [x] Code Generation - U5 cleanup-tests-docs
+- [x] Build and Test
 
 ### OPERATIONS PHASE
 - [ ] Operations - PLACEHOLDER
 
 ## Current Status
-- **Lifecycle Phase**: CONSTRUCTION
-- **Next Action**: U4 spa-payment-orders — Code Generation Part 1（実装計画作成）
+- **Lifecycle Phase**: CONSTRUCTION（完了）
+- **Next Action**: PR 作成または main へのマージ
 - **Branch**: `feat/react-spa`

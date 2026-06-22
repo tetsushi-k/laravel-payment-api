@@ -8,8 +8,8 @@ Laravel × Stripe Webhook による決済連携アプリケーションのポー
 
 ## ① 概要
 
-Stripeの決済フローと Webhook 連携を実装した Laravel アプリケーションです。
-ログイン認証・決済フォーム・Webhook受信・注文一覧までを一通り実装しており、決済システム特有の課題（**署名検証・冪等性・状態遷移・レースコンディション対策**）に取り組んでいます。
+Stripeの決済フローと Webhook 連携を実装した Laravel + React SPA アプリケーションです。
+Laravel は JSON API と Webhook を、React は画面と Stripe.js を担当する構成です。
 
 開発は Cursor を使用。`.cursor/rules/` のポートフォリオ品質基準（不要なファイル・処理を足さない、README と実装の整合、Seeder で `make setup` 直後に再現）と README ガイド（共通章構成・Mermaid）に沿って実装している。
 
@@ -29,11 +29,12 @@ Stripeの決済フローと Webhook 連携を実装した Laravel アプリケ�
 | カテゴリ | 技術 |
 |---|---|
 | バックエンド | Laravel 13.x（PHP 8.4） |
-| 決済 | Stripe API（stripe/stripe-php v20.x） |
+| フロントエンド | React 19 + TypeScript + Vite + React Router + Tailwind CSS |
+| 決済 | Stripe API（stripe/stripe-php v20.x、@stripe/stripe-js） |
 | データベース | MySQL 8.0 |
 | Web サーバー | Nginx 1.25 |
 | コンテナ | Docker / Docker Compose |
-| 認証 | Laravel 標準セッション認証 |
+| 認証 | Laravel Sanctum（SPA セッション認証） |
 
 ---
 
@@ -84,7 +85,7 @@ sequenceDiagram
     participant Stripe as Stripe API
 
     User->>Browser: カード情報を入力
-    Browser->>App: POST /payment（PaymentIntent作成）
+    Browser->>App: POST /api/payment/intent（金額）
     App->>Stripe: PaymentIntent.create()
     Stripe-->>App: client_secret
     App->>App: orders を status='pending' で作成
@@ -238,12 +239,17 @@ docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate
 ```
 
-**5. テストユーザーの作成**
+**5. 初期データ投入**
 ```bash
-docker compose exec app php artisan tinker --execute="App\Models\User::create(['name' => 'テストユーザー', 'email' => 'test@example.com', 'password' => bcrypt('password123')]);"
+docker compose exec app php artisan db:seed
 ```
 
-**6. 動作確認**
+**6. フロントエンドビルド**（初回または `resources/js` 変更後）
+```bash
+cd src && npm install && npm run build
+```
+
+**7. 動作確認**
 
 ブラウザで `http://localhost` にアクセスすると `/login` にリダイレクトされます。
 以下の認証情報でログインしてください：
@@ -272,17 +278,27 @@ docker compose exec app php artisan tinker --execute="App\Models\User::create(['
 
 ### Webhook のローカル受信
 
+決済後に注文ステータスを `succeeded` に更新するには、**決済前に** Stripe CLI で Webhook 転送を起動してください。
+
 [Stripe CLI](https://stripe.com/docs/stripe-cli) を使ってローカルで Webhook を受信できます：
 
 ```bash
-# Stripe CLI でイベントを localhost に転送
+# 1. Stripe CLI でイベントを localhost に転送（先に起動）
 stripe listen --forward-to localhost/api/webhook/stripe
 
-# 別ターミナルでテストイベントを送信
+# 2. 表示された whsec_... を src/.env の STRIPE_WEBHOOK_SECRET に設定
+
+# 3. ブラウザで決済 → 注文一覧で「再取得」
+
+# 手動でテストイベントを送る場合
 stripe trigger payment_intent.succeeded
 ```
 
-`stripe listen` を起動すると Webhook シークレットが表示されるので、`.env` の `STRIPE_WEBHOOK_SECRET` に設定してください。
+### テスト実行
+
+```bash
+docker compose exec app php artisan test
+```
 
 ### コンテナの停止
 
@@ -301,28 +317,31 @@ laravel-payment-api/
 │   │   └── default.conf
 │   └── php/
 │       └── Dockerfile
-├── src/                                              # Laravel アプリケーション
+├── src/                                              # Laravel + React SPA
 │   ├── app/
 │   │   ├── Http/Controllers/
-│   │   │   ├── AuthController.php                    # ログイン・ログアウト
-│   │   │   ├── PaymentController.php                 # 決済フォーム・PaymentIntent作成
-│   │   │   ├── OrderController.php                   # 注文一覧
-│   │   │   └── StripeWebhookController.php           # Webhook受信・署名検証
+│   │   │   ├── AuthApiController.php                 # 認証 JSON API
+│   │   │   ├── PaymentApiController.php              # PaymentIntent 作成 API
+│   │   │   ├── OrderApiController.php                # 注文一覧 API
+│   │   │   ├── ConfigApiController.php               # Stripe 公開キー API
+│   │   │   └── StripeWebhookController.php           # Webhook 受信・署名検証
 │   │   ├── Models/
 │   │   │   ├── User.php
 │   │   │   └── Order.php
 │   │   └── Services/
 │   │       └── PaymentService.php                    # 決済ビジネスロジック・冪等性制御
-│   ├── database/migrations/
-│   │   ├── xxxx_create_users_table.php
-│   │   └── xxxx_create_orders_table.php
-│   ├── resources/views/
-│   │   ├── auth/login.blade.php
-│   │   ├── payment/
-│   │   └── orders/
-│   └── routes/
-│       ├── web.php                                   # ログイン・決済・注文一覧
-│       └── api.php                                   # Webhook
+│   ├── resources/
+│   │   ├── js/                                       # React SPA
+│   │   │   ├── pages/                                # Login, Payment, Orders 等
+│   │   │   ├── components/                           # AuthGuard, Layout
+│   │   │   ├── hooks/useAuth.tsx
+│   │   │   └── api/client.ts
+│   │   └── views/
+│   │       └── app.blade.php                         # SPA シェル
+│   ├── routes/
+│   │   ├── web.php                                   # SPA フォールバック
+│   │   └── api.php                                   # JSON API + Webhook
+│   └── tests/Feature/                                # API / Webhook テスト
 ├── docker-compose.yml
 └── README.md
 ```

@@ -3,28 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Services\StripePaymentIntentCreator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Stripe\PaymentIntent;
-use Stripe\Stripe;
 
 class PaymentApiController extends Controller
 {
+    public function __construct(
+        private readonly StripePaymentIntentCreator $paymentIntentCreator
+    ) {}
+
     public function createIntent(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'amount' => ['required', 'integer', 'min:100', 'max:1000000'],
         ]);
 
-        Stripe::setApiKey(config('services.stripe.secret_key'));
-
-        $paymentIntent = PaymentIntent::create([
-            'amount' => $validated['amount'],
-            'currency' => 'jpy',
-            'automatic_payment_methods' => [
-                'enabled' => true,
-            ],
-        ]);
+        $paymentIntent = $this->paymentIntentCreator->create($validated['amount']);
 
         Order::create([
             'user_id' => $request->user()->id,

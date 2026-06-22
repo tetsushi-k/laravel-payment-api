@@ -143,3 +143,19 @@
 **Context**: CONSTRUCTION - Code Generation U3 payment-orders-api
 
 ---
+
+## Code Generation - U4 spa-payment-orders Complete
+**Timestamp**: 2026-06-22T00:00:00Z
+**User Input**: "U4実装して。"
+**AI Response**: "Implemented U4 spa-payment-orders: PaymentPage with Stripe.js, PaymentSuccessPage, OrderListPage with refresh and pagination, connected to U3 APIs."
+**Context**: CONSTRUCTION - Code Generation U4 spa-payment-orders
+
+---
+
+## Code Generation - U5 cleanup-tests-docs Complete
+**Timestamp**: 2026-06-22T09:00:00Z
+**User Input**: "おっけー次いこう。"
+**AI Response**: "Implemented U5: removed legacy Blade views and controllers, added Feature tests (auth, payment, webhook, SPA shell), updated Seeder and README for SPA architecture."
+**Context**: CONSTRUCTION - Code Generation U5 cleanup-tests-docs
+
+---
