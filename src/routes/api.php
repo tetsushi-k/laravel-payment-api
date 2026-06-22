@@ -1,12 +1,21 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthApiController;
+use App\Http\Controllers\ConfigApiController;
+use App\Http\Controllers\OrderApiController;
+use App\Http\Controllers\PaymentApiController;
 use App\Http\Controllers\StripeWebhookController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+Route::post('/login', [AuthApiController::class, 'login']);
+Route::post('/logout', [AuthApiController::class, 'logout'])->middleware('auth:sanctum');
+Route::get('/user', [AuthApiController::class, 'user'])->middleware('auth:sanctum');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/payment/intent', [PaymentApiController::class, 'createIntent']);
+    Route::get('/orders', [OrderApiController::class, 'index']);
+    Route::get('/config/stripe', [ConfigApiController::class, 'stripe']);
+});
 
 // -----------------------------------------------------------
 // Stripe Webhook エンドポイント

@@ -1,0 +1,12 @@
+# LF に統一（Docker / WSL / Linux 実行環境向け）
+* text=auto eol=lf
+
+*.md diff=markdown
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
