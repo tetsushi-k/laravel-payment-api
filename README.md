@@ -204,7 +204,9 @@ DB::transaction(function () use ($paymentIntent) {
 
 ### 前提条件
 - Docker Desktop がインストール済みであること
+- Node.js がインストール済みであること（フロントビルドはホスト側で実行）
 - Stripe アカウントを持っていること（テストモードでOK）
+- `make` が利用できること（Windows は Git Bash / WSL2 を推奨）
 
 ### 手順
 
@@ -214,12 +216,18 @@ git clone <リポジトリURL>
 cd laravel-payment-api
 ```
 
-**2. 環境変数ファイルの作成**
+**2. 一括セットアップ**
+
+コンテナ起動・依存インストール・マイグレーション・シーディング・フロントビルドまでを一括で実行します。
 ```bash
-cp src/.env.example src/.env
+make setup
 ```
 
-`src/.env` を編集して Stripe のキーを設定します：
+`make setup` 直後に `test@example.com` / `password123` でログインできる状態になります。
+
+**3. Stripe キーの設定**
+
+`src/.env` を編集して Stripe のキーを設定します（`make setup` で `.env` は自動生成済み）：
 
 ```env
 STRIPE_SECRET_KEY=sk_test_xxxxxxxxxx     # Stripe Dashboard から取得
@@ -227,29 +235,10 @@ STRIPE_PUBLIC_KEY=pk_test_xxxxxxxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxx   # Webhook 設定後に取得
 ```
 
-**3. Docker コンテナの起動**
-```bash
-docker compose up -d --build
-```
+> 主な `make` コマンドは `make help` で一覧できます。
+> 個別実行する場合は `make up` / `make migrate` / `make seed` / `make build`、データをまっさらに戻す場合は `make fresh` を使用します。
 
-**4. Laravelの初期セットアップ**
-```bash
-docker compose exec app composer install
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate
-```
-
-**5. 初期データ投入**
-```bash
-docker compose exec app php artisan db:seed
-```
-
-**6. フロントエンドビルド**（初回または `resources/js` 変更後）
-```bash
-cd src && npm install && npm run build
-```
-
-**7. 動作確認**
+**4. 動作確認**
 
 ブラウザで `http://localhost` にアクセスすると `/login` にリダイレクトされます。
 以下の認証情報でログインしてください：
@@ -297,13 +286,13 @@ stripe trigger payment_intent.succeeded
 ### テスト実行
 
 ```bash
-docker compose exec app php artisan test
+make test
 ```
 
 ### コンテナの停止
 
 ```bash
-docker compose down
+make down
 ```
 
 ---
@@ -343,6 +332,7 @@ laravel-payment-api/
 │   │   └── api.php                                   # JSON API + Webhook
 │   └── tests/Feature/                                # API / Webhook テスト
 ├── docker-compose.yml
+├── Makefile                                          # セットアップ・運用コマンド集約
 └── README.md
 ```
 
