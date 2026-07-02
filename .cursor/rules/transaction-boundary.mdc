@@ -1,0 +1,38 @@
+---
+description: トランザクション境界の規約（laravel-payment-api）
+globs: src/app/Services/**/*.php
+alwaysApply: false
+---
+
+# トランザクション境界
+
+## ルール
+
+1. **DB 更新は `DB::transaction()` 内で行う** — 複数テーブル・状態遷移を伴う処理
+2. **冪等性はトランザクション内で担保** — `where('status', 'pending')` + `lockForUpdate()`
+3. **外部副作用（メール・Webhook応答以外の dispatch）は Tx 外** — ロールバック後にジョブだけ残る不整合を防ぐ
+4. **Webhook 処理は署名検証後に Service へ委譲**
+
+## 既存の模範（PaymentService）
+
+```php
+DB::transaction(function () use ($paymentIntent) {
+    $order = Order::where(...)
+        ->where('status', 'pending')
+        ->lockForUpdate()
+        ->first();
+    // 条件付き UPDATE で二重処理防止
+});
+```
+
+## AI がコードを生成するとき
+
+```
+❌ transaction なしで status 更新
+❌ transaction 内で Queue::dispatch()（DB ロールバック後にジョブ残留）
+✅ 集計・状態更新は Tx 内、通知 dispatch は Tx 外（laravel-batch と同じ思想）
+```
+
+## 面談での語り口
+
+「決済は pending 限定 + lockForUpdate でレースを防ぐ。バッチ側でも Tx 内外の境界を同じ考え方で設計しています。」

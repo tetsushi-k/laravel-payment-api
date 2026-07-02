@@ -10,6 +10,7 @@ Laravel × Stripe Webhook による決済連携アプリケーションのポー
 
 Stripeの決済フローと Webhook 連携を実装した Laravel + React SPA アプリケーションです。
 Laravel は JSON API と Webhook を、React は画面と Stripe.js を担当する構成です。
+Brownfield 拡張として Blade SSR 版から React SPA 化し、開発プロセスは AI-DLC で記録しています（詳細は §⑨）。
 
 開発は Cursor を使用。`.cursor/rules/` のポートフォリオ品質基準（不要なファイル・処理を足さない、README と実装の整合、Seeder で `make setup` 直後に再現）と README ガイド（共通章構成・Mermaid）に沿って実装している。
 
@@ -331,10 +332,101 @@ laravel-payment-api/
 │   │   ├── web.php                                   # SPA フォールバック
 │   │   └── api.php                                   # JSON API + Webhook
 │   └── tests/Feature/                                # API / Webhook テスト
+├── aidlc-docs/                                       # AI-DLC 成果物（面談で画面共有）
 ├── docker-compose.yml
 ├── Makefile                                          # セットアップ・運用コマンド集約
 └── README.md
 ```
+
+---
+
+## ⑨ React SPA 化 + AI-DLC（Brownfield 拡張）
+
+既存の Blade SSR 版を **React SPA + JSON API** に刷新した拡張フェーズの記録です。
+決済中核（`PaymentService`・Webhook・冪等性）は維持し、変更はプレゼンテーション層と API 契約に限定しています。
+
+開発は **AI-DLC**（awslabs/aidlc-workflows）を Brownfield パターンで適用。Inception で既存コードを Reverse Engineering し、要件・設計を `aidlc-docs/` に残してから Construction で 5 Unit に分けて実装しました。
+
+### Before / After
+
+| 観点 | Before（Blade SSR） | After（React SPA） |
+|---|---|---|
+| フロント | Blade テンプレート + インライン JS | React 19 + TypeScript + Vite + React Router |
+| ルーティング | Laravel `web.php` | クライアントルーティング（`AuthGuard` で保護） |
+| 認証 | セッション（フォーム POST） | Sanctum SPA（Cookie + CSRF） |
+| バックエンド | Controller が HTML 返却 | JSON API（`routes/api.php`） |
+| 決済中核 | `PaymentService` / Webhook | **変更なし**（署名検証・冪等性を維持） |
+| 配信 | Blade ビュー | `app.blade.php` を SPA シェルにし、Vite ビルド成果物を配信 |
+
+### なぜ SPA 分離か
+
+- **保守性**: 画面ロジックを Laravel から切り離し、フロント単体で改修できる
+- **API 境界の明確化**: 決済・注文の契約を JSON API に固定し、将来のモバイル対応にも転用可能
+- **Brownfield の原則**: 動いている Webhook・冪等性ロジックは触らず、リスクの高い領域を変更しない
+
+### AI-DLC で使った工程
+
+| フェーズ | 成果物（`aidlc-docs/`） | 自分が判断したこと |
+|---|---|---|
+| Reverse Engineering | `inception/reverse-engineering/` | 既存 Blade 構成・触ってはいけない中核の特定 |
+| Requirements | `inception/requirements/requirements.md` | Sanctum SPA 採用、Webhook 維持、拡張機能（Security Baseline 等）は No |
+| Application Design | `inception/application-design/` | API エンドポイント一覧、SPA コンポーネント分割 |
+| Construction | `construction/plans/u1〜u5-*.md` | Unit 順序（認証 → SPA 基盤 → 決済 API → 画面 → テスト） |
+
+面談での画面共有導線は [`aidlc-docs/README.md`](aidlc-docs/README.md) を参照。
+
+### SPA アーキテクチャ
+
+Laravel は JSON API と Webhook に専念し、React が画面と Stripe.js を担当する。認証は同一オリジン上の Sanctum SPA パターン。
+
+```mermaid
+flowchart LR
+    subgraph Browser["ブラウザ"]
+        SPA["React SPA\n(Vite ビルド)"]
+    end
+    subgraph Laravel["Laravel"]
+        API["routes/api.php\nJSON API"]
+        WH["StripeWebhookController"]
+        Svc["PaymentService"]
+    end
+    SPA -->|"Cookie + CSRF"| API
+    API --> Svc
+    WH --> Svc
+```
+
+### 面談版（1分）— トークH
+
+1. **何を作ったか（15秒）**  
+   既存の Laravel 決済アプリを Brownfield で React SPA 化しました。Blade のサーバーサイドレンダリングから、React + JSON API + Sanctum SPA 認証に刷新しています。
+
+2. **設計上の工夫（30秒）**  
+   AI-DLC の Inception で既存コードを Reverse Engineering し、決済中核の `PaymentService` と Webhook は触らない方針を先に固定しました。API 境界を `routes/api.php` に集約し、フロントは React Router でクライアントルーティング。承認ゲートごとに `aidlc-docs/` に判断を残し、Never Vibe Code で実装しています。
+
+3. **実務との接続（15秒）**  
+   現場でも「壊れている部分だけ直す」Brownfield が多いです。未習熟の React でも、設計をドキュメントに落としてから AI 駆動で実装すれば、初見技術でも実務品質に到達できる、という再現性のある強みを示しています。
+
+---
+
+## ⑩ Cursor Rules（テックリード訴求）
+
+`.cursor/rules/` にチーム品質基準を定義し、AI 生成コードのレビュー負荷を下げる運用を実践しています。
+
+| Rule | 内容 | 面談での語り |
+|---|---|---|
+| `service-layer.mdc` | Controller 薄く・Service に集約 | 「ロジック散在を Rule で防ぐ」 |
+| `transaction-boundary.mdc` | Tx 内更新・lockForUpdate・dispatch は Tx 外 | 「決済のレース対策を規約化」 |
+| `test-conventions.mdc` | Feature テスト・Stripe モック・命名規約 | 「AI 生成にも認証/冪等性テストが付く」 |
+
+### 面談版（1分）— トークC 素材
+
+1. **何をしたか（15秒）**  
+   `.cursor/rules/` に Service 層・トランザクション境界・テスト規約を定義し、AI 駆動開発時の品質底上げに使っています。
+
+2. **Before/After（30秒）**  
+   Rule 導入前は AI が Controller にロジックを直書きしがちでした。Rule 適用後は Service 層への抽出と Feature テスト付与がデフォルトになり、セルフレビューの指摘箇所が減りました。
+
+3. **実務との接続（15秒）**  
+   テックリードとして「Rule を書く → ジュニアの AI 生成コードの品質が上がる → レビュー負荷が下がる」という流れをチームに展開できる、と語れます。
 
 ---
 

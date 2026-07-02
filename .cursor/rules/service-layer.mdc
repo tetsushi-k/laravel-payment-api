@@ -1,0 +1,34 @@
+---
+description: Service層・Repositoryパターンの強制（laravel-payment-api）
+globs: src/app/**/*.php
+alwaysApply: false
+---
+
+# Service / Repository パターン
+
+## ルール
+
+1. **Controller は薄く保つ** — リクエスト受付・バリデーション・レスポンス返却のみ
+2. **ビジネスロジックは `App\Services\` に集約** — DB操作・状態遷移・外部API呼び出し
+3. **Eloquent は Service 内で使用可** — 本プロジェクトは Repository クラスを別設せず、Service がドメインロジックの境界
+4. **新規ドメイン処理を Controller に直書きしない**
+
+## 既存の模範
+
+- `PaymentService` — Webhook 起因の状態遷移・冪等性・`lockForUpdate()`
+- `StripePaymentIntentCreator` — Stripe API 呼び出しの分離
+- `*ApiController` — 認証・バリデーション後に Service を呼ぶだけ
+
+## AI がコードを生成するとき
+
+```
+❌ Controller 内で Order::where(...)->update(...)
+✅ PaymentService::handleSucceeded() を呼ぶ
+
+❌ 複数 Controller で同じクエリをコピペ
+✅ Service メソッドに抽出し、テスト可能にする
+```
+
+## 面談での語り口
+
+「ジュニアが Controller にロジックを書いても、Rule で Service 層への移動を促せる。レビュー初動で『Service に寄せて』と言う回数が減りました。」

@@ -1,0 +1,36 @@
+---
+description: テスト規約（laravel-payment-api）
+globs: src/tests/**/*.php
+alwaysApply: false
+---
+
+# テスト規約
+
+## ルール
+
+1. **Feature テストは HTTP 経由** — `postJson` / `getJson` で API 契約を検証
+2. **DB は `RefreshDatabase`** — テスト間の独立性を保つ
+3. **外部 API は Mock** — Stripe は `Mockery` で `StripePaymentIntentCreator` を差し替え
+4. **命名**: `test_{動作}_{条件}_{期待結果}` — 例: `test_payment_intent_requires_authentication`
+5. **認証・認可・バリデーションを必ずテスト** — 実務で壊れやすい箇所
+
+## 必須カバレッジ（新機能追加時）
+
+| 観点 | テスト例 |
+|---|---|
+| 認証 | 未ログイン → 401 |
+| バリデーション | 不正 amount → 422 |
+| 正常系 | 注文作成 + client_secret 返却 |
+| 冪等性 | Webhook 再送 → 二重更新なし |
+
+## AI がテストを生成するとき
+
+```
+❌ ユニットテストだけで HTTP 契約を検証しない
+❌ 本物の Stripe API を叩く
+✅ Feature テスト + Stripe モック + RefreshDatabase
+```
+
+## 面談での語り口
+
+「Rule でテストの型を固定しているので、AI 生成コードにも認証・バリデーション・冪等性のテストが付きやすく、レビュー負荷が下がります。」
