@@ -2,6 +2,8 @@
 
 Laravel × Stripe Webhook による決済連携アプリケーションのポートフォリオ実装です。
 
+ポートフォリオ上の位置: DG-AIDLC 適用例（[salon-booking-ddd](https://github.com/tetsushi-k/salon-booking-ddd) / [ticket-hold-legacy-replace](https://github.com/tetsushi-k/ticket-hold-legacy-replace)）の次に置く **実務完成形**（決済 SPA）。プロフィール全体は [tetsushi-k](https://github.com/tetsushi-k)。
+
 ユーザーがログインしてカード決済を行い、Stripeからの Webhook を受け取って注文ステータスを更新する一連のフローを、実務を意識した設計で構築しています。
 
 ---
